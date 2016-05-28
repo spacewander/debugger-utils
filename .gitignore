@@ -62,4 +62,5 @@ target/
 .ipynb_checkpoints
 
 *.c
+*.cpp
 try_*.py

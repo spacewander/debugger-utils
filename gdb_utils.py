@@ -2,13 +2,18 @@
 from collections import defaultdict
 import gdb
 
-__all__ = ['get_breakpoint', 'br', 'delete', 'info']
+__all__ = ['get_breakpoint',
+    'br',
+    'commands',
+    'delete',
+    'info',
+    'watch']
 
 
 def get_breakpoint(location=None, expression=None, condition=None, number=None):
     """Return last breakpoint if not arguments given,
     or the breakpoint with given number if `number` given,
-    or the first breakpoint matched given 
+    or the first breakpoint matched given
     `location`(for `breakpoint`)/`expression`(for watchpoint) and `condtion`.
 
     If there is no any breakpoint,
@@ -45,8 +50,8 @@ def br(location, threadnum='', condition='', commands=None,
     br('2', temporary=True)
     """
     if commands is not None:
-        if hasattr(commands, '__call__'):
-            raise TypeError('commands argument should be a list or a function')
+        if not hasattr(commands, '__call__'):
+            raise TypeError('commands argument should be a function')
     if threadnum != '':
         threadnum = 'thread %d' % int(threadnum)
     if condition != '':
@@ -62,6 +67,11 @@ def br(location, threadnum='', condition='', commands=None,
         register_callback_to_breakpoint_num(bp.number, commands)
         return bp
     return get_last_breakpoint()
+
+def commands(callback, breakpoint_num=None):
+    if breakpoint_num is None:
+        breakpoint_num = get_last_breakpoint().number
+    register_callback_to_breakpoint_num(breakpoint_num, callback)
 
 def delete(*args):
     """
@@ -81,6 +91,7 @@ def info(entry, *args):
     When `entry` is:
     * locals/args: Return dict{variable=value}
     * breakpoints: Return a list of gdb.Breakpoint
+    * threads: Return a list of (is_current_thread, id, target_id, name, frame)
     """
     if entry.startswith(('ar', 'lo')):
         info = gdb.execute('info ' + entry, to_string=True).splitlines()
@@ -94,8 +105,37 @@ def info(entry, *args):
         return group
     elif entry.startswith('b'):
         return gdb.breakpoints()
+    elif entry.startswith('th'):
+        info = gdb.execute('info %s %s' % (entry, args_to_string(*args)),
+                to_string=True).splitlines()
+        if len(info) == 1 and info[0].startswith('No '):
+            return []
+        group = []
+        for line in info[1:]:
+            is_current_thread = line[0] == '*'
+            ids, _, others = line[2:].partition('"')
+            idlist = ids.split()
+            id = idlist[0]
+            target_id = " ".join(idlist[1:]).strip()
+            name, _, frame = others.partition('"')
+            group.append((is_current_thread, id, target_id, name, frame.strip()))
+        return group
     return gdb.execute(
         'info %s %s' % (entry, args_to_string(*args)), to_string=True)
+
+def watch(expression, condition='', commands=None):
+    if commands is not None:
+        if not hasattr(commands, '__call__'):
+            raise TypeError('commands argument should be a function')
+    if condition != '':
+        condition = 'if ' + condition
+    gdb.execute('watch %s %s' % (expression, condition))
+    if commands is not None:
+        bp = get_last_breakpoint()
+        register_callback_to_breakpoint_num(bp.number, commands)
+        return bp
+    return get_last_breakpoint()
+
 
 # Helpers
 def str_except_none(arg):
