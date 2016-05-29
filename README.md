@@ -2,22 +2,23 @@
 
 GDB commands:
 
-- [x]  break
-- [ ] clear
-- [x]  commands
-- [x]  delete
-- [ ] disable
-- [ ] define
-- [ ] enable
-- [x]  info
-- [ ] print
-- [ ] set
-- [ ] thread
-- [x]  watch
+- [x] break
+- [x] clear
+- [x] commands
+- [x] delete
+- [x] disable
+- [x] define
+- [x] enable
+- [x] info
+- [x] thread
+- [x] thread_name
+- [x] watch
 
 Other API:
 
-- [x]  get_breakpoint
+- [x] get_breakpoint
 - [ ] function
 - [ ] stop
 - [ ] pprint
+- [ ] globval
+- [ ] ty
