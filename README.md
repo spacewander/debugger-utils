@@ -17,8 +17,8 @@ GDB commands:
 Other API:
 
 - [x] get_breakpoint
-- [ ] function
-- [ ] stop
+- [x] function
+- [x] stop
 - [ ] pprint
-- [ ] globval
-- [ ] ty
+- [x] globval
+- [x] ty

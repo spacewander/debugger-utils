@@ -18,6 +18,7 @@ __all__ = [
     'watch',
     'get_breakpoint',
     'globval',
+    'stop',
     'ty']
 
 
@@ -65,10 +66,24 @@ def clear(*args):
     "clear('main.cpp:11')"
     gdb.execute('clear %s' % args_to_string(*args))
 
-def commands(callback, breakpoint_num=None):
-    if breakpoint_num is None:
-        breakpoint_num = get_last_breakpoint().number
-    register_callback_to_breakpoint_num(breakpoint_num, callback)
+def commands(callback, breakpoint_num=None, remove=False):
+    """If `breakpoint_num` is not given, add callback to last breakpoint,
+    else add to specific breakpoint.
+    If`remove` is True, remove the callback instead of adding it."""
+    if remove is False:
+        if breakpoint_num is None:
+            bp = get_last_breakpoint()
+            if bp is None:
+                raise gdb.GdbError('No breakpoints specified')
+            breakpoint_num = bp.number
+        register_callback_to_breakpoint_num(breakpoint_num, callback)
+    else:
+        if breakpoint_num is None:
+            bp = get_last_breakpoint()
+            if bp is None:
+                raise gdb.GdbError('No breakpoints specified')
+            breakpoint_num = bp.number
+        remove_callback_to_breakpoint_num(breakpoint_num, callback)
 
 
 _define_template = """\
@@ -106,25 +121,7 @@ def define(cmd):
     Move a breakpoint to other location.
     (gdb) move 100 main.cpp:22
     """
-    cmdname = cmd.__name__
-    classname = cmdname.upper()
-    # Use the same technic as namedtuple
-    class_definition = _define_template.format(
-        cmdname = cmdname,
-        docstring = cmd.__doc__ if cmd.__doc__ is not None else '',
-        classname = classname
-    )
-    namespace = dict(__name__='define_%s' % cmdname)
-    exec(class_definition, namespace)
-    result = namespace[classname]
-    result.cmd = cmd
-    result._source = class_definition
-    try:
-        result.__module__ = sys._getframe(1).f_globals.get(
-            '__name__', '__main__')
-    except (AttributeError, ValueError):
-        pass
-    return result
+    return eval_template(_define_template, cmd)
 
 
 def delete(*args):
@@ -242,6 +239,54 @@ def get_breakpoint(location=None, expression=None, condition=None, number=None):
                 return bp
     return None
 
+_function_template = """\
+import gdb
+class {classname}(gdb.Function):
+    \"\"\"{docstring}\"\"\"
+    def __init__(self):
+        super(self.__class__, self).__init__("{cmdname}")
+
+    @classmethod
+    def cmd(*args):
+        raise NotImplementError()
+
+    def invoke(self, *args):
+        return {classname}.cmd(*args)
+{classname}()
+"""
+def function(func):
+    """Define a gdb convenience function with user specific function.
+
+    # greet.py
+    def greet(name):
+        "The `name` argument will be a gdb.Value"
+        return "Hello, %s" % name.string()
+    function(func)
+
+    (gdb) so greet.py
+    (gdb) p $greet("World")
+    $1 = "Hello World"
+    """
+    return eval_template(_function_template, func)
+
+
+def stop(callback, breakpoint=None, remove=False):
+    """Run callback while gdb stops on breakpoints.
+    If `breakpoint` is given, run it while specific breakpoint is hit.
+    If `remove` is True, remove callback instead of adding it.
+    """
+    if not remove:
+        if isinstance(breakpoint, gdb.Breakpoint):
+            register_callback_to_breakpoint_num(breakpoint.number, callback)
+        else:
+            gdb.events.stop.connect(callback)
+    else:
+        if isinstance(breakpoint, gdb.Breakpoint):
+            remove_callback_to_breakpoint_num(breakpoint.number, callback)
+        else:
+            gdb.events.stop.disconnect(callback)
+
+
 TYPE_CACHE = {}
 def ty(typename):
     """Return a gdb.Type object represents given `typename`.
@@ -275,9 +320,13 @@ def get_last_breakpoint():
     if bps is None: raise gdb.GdbError('No breakpoints or watchpoints.')
     return bps[-1]
 
-STOP_EVENT_REGISTER = defaultdict(list)
+STOP_EVENT_REGISTER = defaultdict(set)
 def register_callback_to_breakpoint_num(breakpoint_num, callback):
-    STOP_EVENT_REGISTER[breakpoint_num].append(callback)
+    STOP_EVENT_REGISTER[breakpoint_num].add(callback)
+
+def remove_callback_to_breakpoint_num(breakpoint_num, callback):
+    if callback in STOP_EVENT_REGISTER[breakpoint_num]:
+        STOP_EVENT_REGISTER[breakpoint_num].remove(callback)
 
 def trigger_registered_callback(num):
     if num in STOP_EVENT_REGISTER:
@@ -312,3 +361,24 @@ def find_first_threadnum_with_name(name):
         if th[3] == name:
             return th[1]
     return None
+
+def eval_template(template, cmd):
+    cmdname = cmd.__name__
+    classname = cmdname.upper()
+    # Use the same technic as namedtuple
+    class_definition = template.format(
+        cmdname = cmdname,
+        docstring = cmd.__doc__ if cmd.__doc__ is not None else '',
+        classname = classname
+    )
+    namespace = dict(__name__='template_%s' % cmdname)
+    exec(class_definition, namespace)
+    result = namespace[classname]
+    result.cmd = cmd
+    result._source = class_definition
+    try:
+        result.__module__ = sys._getframe(1).f_globals.get(
+            '__name__', '__main__')
+    except (AttributeError, ValueError):
+        pass
+    return result
