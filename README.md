@@ -19,6 +19,7 @@ Other API:
 - [x] get_breakpoint
 - [x] function
 - [x] stop
-- [ ] pprint
+- [x] register_pprinter
+- [x] build_pprinter
 - [x] globval
 - [x] ty

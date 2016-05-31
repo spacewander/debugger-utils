@@ -18,6 +18,7 @@ __all__ = [
     'watch',
     'get_breakpoint',
     'globval',
+    'register_pprinter',
     'stop',
     'ty']
 
@@ -95,7 +96,7 @@ class {classname}(gdb.Command):
 
     @classmethod
     def cmd(argv, from_tty):
-        raise NotImplementError()
+        raise NotImplementError('cmd')
 
     def invoke(self, args, from_tty):
         argv = gdb.string_to_argv(args)
@@ -248,7 +249,7 @@ class {classname}(gdb.Function):
 
     @classmethod
     def cmd(*args):
-        raise NotImplementError()
+        raise NotImplementError('func')
 
     def invoke(self, *args):
         return {classname}.cmd(*args)
@@ -305,6 +306,18 @@ def ty(typename):
 def globval(var):
     """Get global `var`'s value'"""
     return gdb.lookup_global_symbol(var).value()
+
+def register_pprinter(pprinter, pattern):
+    """Register given pprinter to class matched given pattern."""
+    if not hasattr(pprinter, 'to_string'):
+        raise gdb.GdbError(
+                'A pretty printer should implement `to_string` method.')
+    pp = (lambda val: pprinter(val)
+                if re.match(pattern, str(val.type)) else None)
+    # Set a name so that we can enable/disable with its name
+    pp.__name__ = pprinter.__name__
+    gdb.pretty_printers.append(pp)
+
 
 # Helpers
 def str_except_none(arg):
@@ -363,7 +376,7 @@ def find_first_threadnum_with_name(name):
     return None
 
 def eval_template(template, cmd):
-    cmdname = cmd.__name__
+    cmdname = to_classname(cmd.__name__)
     classname = cmdname.upper()
     # Use the same technic as namedtuple
     class_definition = template.format(
@@ -382,3 +395,74 @@ def eval_template(template, cmd):
     except (AttributeError, ValueError):
         pass
     return result
+
+
+_pp_template = """\
+class {classname}:
+    def __init__(self, val):
+        self.val = val
+
+    @classmethod
+    def _to_string(val):
+        raise NotImplementError('to_string')
+
+    def to_string(self):
+        return {classname}._to_string(self.val)
+"""
+_display_hint_snippet = """
+    def display_hint(self):
+        raise NotImplementError('display_hint')
+"""
+_children_snippet = """
+    @classmethod
+    def _children(val):
+        raise NotImplementError('children')
+
+    def children(self):
+        return {classname}._children(self.val)
+"""
+def build_pprinter(to_string, display_hint=None, children=None):
+    """Build a pretty printer.
+    For example:
+    def buffer_pretty_printer(val):
+        return "size: %d\n" % self.val['size']
+    pp = build_pprinter(buffer_pretty_printer)
+
+    ... is equal to:
+
+    class BufferPrettyPrinter:
+        def __init__(self, val):
+            self.val = val
+        def to_string(self):
+            return "size: %d\n" % self.val['size']
+    pp = BufferPrettyPrinter
+    """
+    classname = to_classname(to_string.__name__)
+    template = _pp_template
+    if display_hint is not None:
+        template += _display_hint_snippet
+    if children is not None:
+        template += _children_snippet
+    class_definition = template.format(
+        classname = classname
+    )
+    namespace = dict(__name__='template_%s' % classname)
+    exec(class_definition, namespace)
+    result = namespace[classname]
+
+    result._to_string = to_string
+    if display_hint is not None:
+        result.display_hint = lambda self: display_hint
+    if children is not None:
+        result._children = children
+
+    result._source = class_definition
+    try:
+        result.__module__ = sys._getframe(1).f_globals.get(
+            '__name__', '__main__')
+    except (AttributeError, ValueError):
+        pass
+    return result
+
+def to_classname(name):
+    return ''.join(word.capitalize() for word in name.split('_'))

@@ -43,15 +43,4 @@ def lookup_buffer(val):
 
 gdb.pretty_printers.append(lookup_buffer)
 
-
-# Or register pretty printer with special shared library
-def build_pretty_printerr():
-    pp = gdb.printing.RegexpCollectionPrettyPrinter("Your_lib")
-    pp.add_printer('Buffer', '^Buffer$', BufferPrinter)
-    return pp
-
-gdb.printing.register_pretty_printer(gdb.current_objfile(),
-        build_pretty_printerr())
-
-
 # After
