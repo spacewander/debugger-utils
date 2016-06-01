@@ -19,6 +19,8 @@ __all__ = [
     'get_breakpoint',
     'globval',
     'register_pprinter',
+    'build_pprinter',
+    'function',
     'stop',
     'ty']
 
@@ -109,13 +111,14 @@ def define(cmd):
     to this function, first is argv(list of parameters), second is `from_tty`.
 
     # move.py
+    import gdb_utils
     def move(argv, tty):
         "Move a breakpoint to other location."
         if len(argv) != 2:
             raise gdb.GdbError('Expect two arguments, %d given' % len(argv))
         gdb.execute('delete ' + argv[0])
         gdb.execute('break ' + argv[1])
-    define(move)
+    gdb_utils.define(move)
 
     (gdb) so move.py
     (gdb) help move
@@ -200,6 +203,9 @@ def thread_name(name, threadnum=None):
         gdb.execute('thread name %s' % name)
 
 def watch(expression, condition='', commands=None):
+    """
+    # watch array.len if size > 20
+    watch('array.len', condition='size > 20')"""
     if commands is not None:
         if not hasattr(commands, '__call__'):
             raise TypeError('commands argument should be a function')
@@ -218,7 +224,7 @@ def get_breakpoint(location=None, expression=None, condition=None, number=None):
     """Return last breakpoint if not arguments given,
     or the breakpoint with given number if `number` given,
     or the first breakpoint matched given
-    `location`(for `breakpoint`)/`expression`(for watchpoint) and `condtion`.
+    `location`(for `breakpoint`)/`expression`(for watchpoint) and `condition`.
 
     If there is no any breakpoint,
     raise gdb.GdbError('No breakpoints or watchpoints.')
@@ -259,10 +265,11 @@ def function(func):
     """Define a gdb convenience function with user specific function.
 
     # greet.py
+    import gdb_utils
     def greet(name):
         "The `name` argument will be a gdb.Value"
         return "Hello, %s" % name.string()
-    function(func)
+    gdb_utils.function(func)
 
     (gdb) so greet.py
     (gdb) p $greet("World")
@@ -304,7 +311,7 @@ def ty(typename):
     return tp
 
 def globval(var):
-    """Get global `var`'s value'"""
+    """Get global `var`'s value"""
     return gdb.lookup_global_symbol(var).value()
 
 def register_pprinter(pprinter, pattern):
@@ -376,8 +383,8 @@ def find_first_threadnum_with_name(name):
     return None
 
 def eval_template(template, cmd):
-    cmdname = to_classname(cmd.__name__)
-    classname = cmdname.upper()
+    cmdname = cmd.__name__
+    classname = to_classname(cmd.__name__)
     # Use the same technic as namedtuple
     class_definition = template.format(
         cmdname = cmdname,
@@ -426,7 +433,10 @@ def build_pprinter(to_string, display_hint=None, children=None):
     For example:
     def buffer_pretty_printer(val):
         return "size: %d\n" % self.val['size']
-    pp = build_pprinter(buffer_pretty_printer)
+    def children(val):
+        return []
+    pp = build_pprinter(buffer_pretty_printer, display_hint='array',
+            children=children)
 
     ... is equal to:
 
@@ -435,6 +445,10 @@ def build_pprinter(to_string, display_hint=None, children=None):
             self.val = val
         def to_string(self):
             return "size: %d\n" % self.val['size']
+        def children(self):
+            return []
+        def display_hint(self):
+            return 'array'
     pp = BufferPrettyPrinter
     """
     classname = to_classname(to_string.__name__)
