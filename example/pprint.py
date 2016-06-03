@@ -44,3 +44,21 @@ def lookup_buffer(val):
 gdb.pretty_printers.append(lookup_buffer)
 
 # After
+import gdb_utils
+
+
+def _iterate(pointer, size):
+    for i in range(size):
+        elem = pointer.dereference()
+        pointer = pointer + 1
+        yield ('[%d]' % i, elem)
+
+def iter_data(val):
+    return _iterate(val['data'], int(val['used']))
+
+def to_string(val):
+    return "used: %d\nfree: %d\n" % (val['used'], val['free'])
+
+pp = gdb_utils.build_pprinter(to_string, display_hint='array',
+        children=iter_data)
+gdb_utils.register_pprinter(pp, pattern='^Buffer$')

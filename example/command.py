@@ -30,3 +30,12 @@ class Move(gdb.Command):
 Move()
 
 # After
+import gdb_utils
+
+def move(argv, from_tty):
+    if len(argv) != 2:
+        raise gdb.GdbError('输入参数数目不对，help mv以获得用法')
+    gdb_utils.delete(argv[0])
+    gdb_utils.br(argv[1])
+
+gdb_utils.define(move)

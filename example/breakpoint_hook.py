@@ -22,3 +22,12 @@ def commands(event):
 gdb.events.stop.connect(commands)
 
 # After
+import gdb_utils
+
+def info_all():
+    gdb.execute('info locals')
+    gdb.execute('info args')
+
+gdb_utils.commands(info_all)
+# Or
+gdb_utils.stop(info_all, gdb.breakpoints()[-1])

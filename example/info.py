@@ -13,18 +13,7 @@
 # k is 0
 # breakpoint 1 type: 1 enable: True temp: False
 # Where: gdb.c:9
-
-# Before
 import os
-import gdb
-
-
-def convert_variable_info(text):
-    group = {}
-    for line in text.splitlines():
-        variable, _, value = line.partition('=')
-        group[variable.rstrip()] = value.lstrip()
-    return group
 
 
 def print_breakpoint(bp):
@@ -40,6 +29,15 @@ def print_breakpoint(bp):
     if bp.condition is not None:
         print("When: " + bp.condition)
 
+# Before
+import gdb
+
+def convert_variable_info(text):
+    group = {}
+    for line in text.splitlines():
+        variable, _, value = line.partition('=')
+        group[variable.rstrip()] = value.lstrip()
+    return group
 
 args = convert_variable_info(gdb.execute('info args', to_string=True))
 locals = convert_variable_info(gdb.execute('info locals', to_string=True))
@@ -49,3 +47,11 @@ print('k is %s' % locals['k'])
 print_breakpoint(breakpoints[0])
 
 # After
+import gdb_utils
+
+args = gdb_utils.info('args')
+locals = gdb_utils.info('locals')
+bps = gdb_utils.info('br')
+print('i is %s' % args['i'])
+print('k is %s' % locals['k'])
+print_breakpoint(breakpoints[0])
