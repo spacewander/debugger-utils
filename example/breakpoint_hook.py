@@ -15,6 +15,8 @@ import gdb
 last_breakpoint_num = gdb.breakpoints()[-1].number
 
 def commands(event):
+    if isinstance(event, 'SignalEvent'):
+        return
     if last_breakpoint_num in (bp.number for bp in event.breakpoints):
         gdb.execute('info locals')
         gdb.execute('info args')

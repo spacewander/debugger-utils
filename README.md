@@ -1,4 +1,4 @@
-# GDB python extend utilities
+# Utilities for extending gdb with python
 
 ## Usage
 
