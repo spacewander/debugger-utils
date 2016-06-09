@@ -143,9 +143,11 @@ def delete(*args):
         gdb.execute('delete ' + args_to_string(*filter(None, args)))
 
 def disable(*args):
+    "Similar to gdb command 'disable'."
     gdb.execute('disable ' + args_to_string(*args))
 
 def enable(*args):
+    "Similar to gdb command 'enable'."
     gdb.execute('enable ' + args_to_string(*args))
 
 def info(entry, *args):
@@ -302,11 +304,14 @@ def ty(typename):
     if typename in TYPE_CACHE:
         return TYPE_CACHE[typename]
 
-    m = re.match(r"^(\S*)\s*\*$", typename)
+    m = re.match(r"^(\S*)\s*[*|&]$", typename)
     if m is None:
         tp = gdb.lookup_type(typename)
     else:
-        tp = gdb.lookup_type(m.group(1)).pointer()
+        if m.group(1).endswith('*'):
+            tp = gdb.lookup_type().pointer()
+        else:
+            tp = gdb.lookup_type().reference()
     TYPE_CACHE[typename] = tp
     return tp
 

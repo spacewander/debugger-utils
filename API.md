@@ -57,8 +57,14 @@ delete(gdb.Breakpoint) # delete given Breakpoint object
 ```
 
 ## disable()
+```
+Similar to gdb command 'disable'.
+```
 
 ## enable()
+```
+Similar to gdb command 'enable'.
+```
 
 ## info(entry)
 ```
