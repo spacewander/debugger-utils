@@ -359,7 +359,7 @@ def trigger_registered_callback(num):
             cb()
 
 def stop_handler(event):
-    if isinstance(event, 'BreakpointEvent'):
+    if isinstance(event, gdb.BreakpointEvent):
         for bp in event.breakpoints:
             trigger_registered_callback(bp.number)
 
